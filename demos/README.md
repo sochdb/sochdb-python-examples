@@ -45,7 +45,7 @@ Three concurrent processes share a single SochDB instance via IPC (Unix socket) 
 - ✅ Concurrent writes without conflicts
 - ✅ Token-budgeted runbook retrieval
 
-**Key Highlight**: Three agents collaborate through shared SochDB without separate message queues or databases.
+**Key Highlight**: In this repo, the demo runs sequentially in embedded mode for repeatable CLI output. IPC server mode is documented but not exposed in the current Python SDK.
 
 [→ See Demo 2 README](./2_incident_response/README.md)
 
@@ -92,14 +92,19 @@ Upload a CSV, run SQL analytics, encode results in TOON, search notes semantical
 ### Prerequisites
 
 ```bash
-# Install SochDB
-pip install sochdb
+# Install SochDB + deps (venv already provided in this repo)
+./venv/bin/pip install openai tiktoken
 
-# Install demo dependencies
-pip install openai tiktoken
+# Set LLM credentials (either Azure OpenAI or OpenAI)
+# Azure (preferred for this repo)
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
+export AZURE_OPENAI_API_KEY="your_api_key"
+export AZURE_OPENAI_API_VERSION="2024-12-01-preview"
+export AZURE_OPENAI_CHAT_DEPLOYMENT="your-deployment"
+export AZURE_OPENAI_EMBEDDING_DEPLOYMENT="text-embedding-3-small"
 
-# Set OpenAI API key
-export OPENAI_API_KEY="your-api-key-here"
+# Or OpenAI (optional)
+export OPENAI_API_KEY="your-openai-key"
 ```
 
 ### Run Demos
@@ -107,17 +112,17 @@ export OPENAI_API_KEY="your-api-key-here"
 ```bash
 # Demo 1: Support Agent
 cd 1_support_agent
-python setup_db.py
-python run_demo.py
+./../../venv/bin/python setup_db.py
+./../../venv/bin/python run_demo.py
 
 # Demo 2: Incident Response (requires separate terminals)
 cd 2_incident_response
-./run_demo.sh
+PATH=./../../venv/bin:$PATH ./run_demo.sh
 
 # Demo 3: Analytics Copilot
 cd 3_analytics_copilot
-python token_comparison.py  # See TOON vs JSON savings
-python run_demo.py          # Interactive churn analysis
+./../../venv/bin/python token_comparison.py  # See TOON vs JSON savings
+./../../venv/bin/python run_demo.py          # Interactive churn analysis
 ```
 
 ---

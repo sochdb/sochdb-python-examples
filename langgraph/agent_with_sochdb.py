@@ -1,6 +1,7 @@
 import os
 import uuid
 import asyncio
+import sys
 from typing import Annotated, Literal, TypedDict
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from langchain_core.tools import tool
@@ -120,30 +121,47 @@ def main():
     print(f"Session ID: {thread_id}")
     print("Type 'quit' to exit.")
     
-    while True:
-        try:
-            user_input = input("\nUser: ")
-            if user_input.lower() in ["quit", "exit"]:
-                break
-                
+    if not sys.stdin.isatty():
+        demo_inputs = [
+            "Hi! I'm planning a trip to Japan next month.",
+            "What should I know about Tokyo?",
+            "Thanks!",
+        ]
+        for user_input in demo_inputs:
             input_message = HumanMessage(content=user_input)
-            
-            # Stream the graph execution
-            for event in app.stream({"messages": [input_message]}, config=config, stream_mode="values"):
-                # We can print intermediate steps if we want
-                pass
-                
-            # Get the final state to print the last response
-            snapshot = app.get_state(config)
-            if snapshot.values and snapshot.values["messages"]:
-                last_msg = snapshot.values["messages"][-1]
-                if isinstance(last_msg, AIMessage):
-                    print(f"Agent: {last_msg.content}")
+            final_state = app.invoke({"messages": [input_message]}, config=config)
+            print(f"User: {user_input}")
+            messages = final_state.get("messages", [])
+            last_msg = messages[-1] if messages else None
+            if isinstance(last_msg, AIMessage):
+                print(f"Agent: {last_msg.content}\n")
+            else:
+                print("Agent: (no response)\n")
+    else:
+        while True:
+            try:
+                user_input = input("\nUser: ")
+                if user_input.lower() in ["quit", "exit"]:
+                    break
                     
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            print(f"Error: {e}")
+                input_message = HumanMessage(content=user_input)
+                
+                # Stream the graph execution
+                for event in app.stream({"messages": [input_message]}, config=config, stream_mode="values"):
+                    # We can print intermediate steps if we want
+                    pass
+                    
+                # Get the final state to print the last response
+                snapshot = app.get_state(config)
+                if snapshot.values and snapshot.values["messages"]:
+                    last_msg = snapshot.values["messages"][-1]
+                    if isinstance(last_msg, AIMessage):
+                        print(f"Agent: {last_msg.content}")
+                        
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                print(f"Error: {e}")
 
     memory_store.close()
     checkpointer.close()

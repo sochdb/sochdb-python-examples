@@ -4,7 +4,7 @@ Demo-grade incident response system showcasing SochDB's IPC mode, namespace isol
 
 ## What This Demo Shows
 
-1. **IPC Mode**: Multiple processes sharing one SochDB instance via Unix socket
+1. **Embedded Mode (Sequential)**: In this repo, the demo runs sequentially in embedded mode for repeatable output
 2. **Namespace Isolation**: Separate namespaces for `incident_ops` data
 3. **Hybrid Retrieval**: Vector + keyword search with Reciprocal Rank Fusion (RRF)
 4. **ACID State Transitions**: Incident states (OPEN → MITIGATING → RESOLVED)
@@ -28,23 +28,26 @@ Process C (Commander)  ────┘    - Metrics (KV)
 ### 1. Install Dependencies
 
 ```bash
-pip install sochdb openai tiktoken
+./../../venv/bin/pip install openai tiktoken
 ```
 
 ### 2. Set OpenAI API Key
 
 ```bash
-export OPENAI_API_KEY="your-api-key-here"
+# Azure OpenAI (preferred)
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
+export AZURE_OPENAI_API_KEY="your_api_key"
+export AZURE_OPENAI_API_VERSION="2024-12-01-preview"
+export AZURE_OPENAI_CHAT_DEPLOYMENT="your-deployment"
+export AZURE_OPENAI_EMBEDDING_DEPLOYMENT="text-embedding-3-small"
 ```
 
-### 3. Start SochDB Server
+### 3. Run Demo (Embedded Mode)
 
 ```bash
 cd demos/2_incident_response
-./start_server.sh
+PATH=./../../venv/bin:$PATH ./run_demo.sh
 ```
-
-This starts SochDB in IPC mode with a Unix socket at `./ops_db/sochdb.sock`.
 
 ## Usage
 
@@ -54,10 +57,10 @@ This starts SochDB in IPC mode with a Unix socket at `./ops_db/sochdb.sock`.
 ./run_demo.sh
 ```
 
-This starts:
-- **Process A**: Metrics collector (writes metrics every 5s)
+This runs:
 - **Process B**: Runbook indexer (indexes runbooks into vector collection)
-- **Process C**: Incident commander (monitors metrics, triggers response)
+- **Process A**: Metrics collector (writes metrics for a few iterations)
+- **Process C**: Incident commander (monitors metrics for a few iterations)
 
 ### Run Processes Manually
 

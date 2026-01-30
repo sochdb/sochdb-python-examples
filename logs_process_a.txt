@@ -1,0 +1,1 @@
+/Users/sushanth/sochdb_examples/sochdb-python-examples/venv/bin/python: can't open file '/Users/sushanth/sochdb_examples/sochdb-python-examples/process_a_collector.py': [Errno 2] No such file or directory

@@ -1,10 +1,12 @@
 # SochDB New Features Examples
 
-This directory contains examples demonstrating the new features in SochDB v0.3.x (currently unreleased).
+This directory contains examples demonstrating graph-related workflows in the current SDK.
+Some previously documented features (GraphOverlay, Policy Hooks, Tool Routing) are not
+exposed in the Python SDK yet, so those examples show app-level equivalents.
 
 ## Features Demonstrated
 
-### 1. Graph Overlay (`graph_overlay_example.py`)
+### 1. Graph API (`graph_overlay_example.py`)
 
 Lightweight graph layer on KV storage for agent memory:
 
@@ -29,7 +31,7 @@ graph.add_edge(GraphEdge(from_id="user_1", edge_type="knows", to_id="user_2"))
 visited = graph.bfs("user_1", max_depth=3)
 ```
 
-### 2. Policy Hooks (`policy_hooks_example.py`)
+### 2. Policy Hooks (App-Level) (`policy_hooks_example.py`)
 
 Trigger-based guardrails for agent operations:
 
@@ -51,7 +53,7 @@ def validate_user(ctx):
     return PolicyAction.ALLOW
 ```
 
-### 3. Tool Routing (`tool_routing_example.py`)
+### 3. Tool Routing (App-Level) (`tool_routing_example.py`)
 
 Context-driven dynamic binding for multi-agent systems:
 
@@ -102,17 +104,17 @@ print(f"Used {result.total_tokens} tokens")
 
 ## Running the Examples
 
-1. Install the SochDB Python SDK:
+1. Install the SochDB Python SDK (venv in this repo):
    ```bash
-   pip install sochdb-client
+   ./../venv/bin/pip install sochdb
    ```
 
 2. Run any example:
    ```bash
-   python graph_overlay_example.py
-   python policy_hooks_example.py
-   python tool_routing_example.py
-   python context_query_example.py
+   ./../venv/bin/python graph_overlay_example.py
+   ./../venv/bin/python policy_hooks_example.py
+   ./../venv/bin/python tool_routing_example.py
+   ./../venv/bin/python context_query_example.py
    ```
 
 ## Related Documentation

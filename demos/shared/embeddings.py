@@ -2,7 +2,10 @@
 
 import os
 from typing import List, Optional, Dict
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class EmbeddingClient:
@@ -10,8 +13,8 @@ class EmbeddingClient:
     
     def __init__(
         self,
-        model: str = "text-embedding-3-small",
-        api_key: Optional[str] = None
+        model: Optional[str] = "text-embedding-3-small",
+        api_key: Optional[str] = None,
     ):
         """Initialize embedding client.
         
@@ -19,8 +22,21 @@ class EmbeddingClient:
             model: OpenAI embedding model name
             api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
         """
-        self.model = model
-        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+        azure_embedding = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+
+        if azure_endpoint and azure_api_key:
+            self.model = azure_embedding or model
+            self.client = AzureOpenAI(
+                api_key=azure_api_key,
+                azure_endpoint=azure_endpoint,
+                api_version=azure_api_version,
+            )
+        else:
+            self.model = model or "text-embedding-3-small"
+            self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
         self._cache: Dict[str, List[float]] = {}
     
     def embed(self, text: str, use_cache: bool = True) -> List[float]:

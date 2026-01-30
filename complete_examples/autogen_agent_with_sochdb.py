@@ -28,12 +28,46 @@ from dotenv import load_dotenv
 
 # AutoGen imports
 from autogen import AssistantAgent, UserProxyAgent, ConversableAgent
+from autogen.oai.client import OpenAIClient
 
 # SochDB
 from sochdb import Database
 
 # Load environment
 load_dotenv()
+
+
+class AzureOpenAIClientNoDot:
+    """
+    Custom Azure client that preserves deployment names with dots.
+    """
+
+    def __init__(self, config, response_format=None):
+        from openai import AzureOpenAI
+
+        self.config = config
+        azure_endpoint = config.get("base_url")
+        azure_endpoint = str(azure_endpoint) if azure_endpoint is not None else None
+        client = AzureOpenAI(
+            api_key=config.get("api_key"),
+            azure_endpoint=azure_endpoint,
+            api_version=config.get("api_version"),
+            azure_deployment=config.get("model"),
+        )
+        self._client = OpenAIClient(client, response_format=response_format)
+
+    def create(self, params):
+        params = {k: v for k, v in params.items() if k != "model_client_cls"}
+        return self._client.create(params)
+
+    def message_retrieval(self, response):
+        return self._client.message_retrieval(response)
+
+    def cost(self, response):
+        return self._client.cost(response)
+
+    def get_usage(self, response):
+        return self._client.get_usage(response)
 
 
 class SochDBMemoryStore:
@@ -218,7 +252,7 @@ def get_conversation_summary_function() -> str:
     return memory.get_summary()
 
 
-def create_agents_with_memory():
+def create_agents_with_memory(interactive: bool = False):
     """
     Create AutoGen agents with SochDB memory integration
     
@@ -235,8 +269,9 @@ def create_agents_with_memory():
             "model": deployment,
             "api_type": "azure",
             "api_key": os.getenv("AZURE_OPENAI_API_KEY"),
-            "azure_endpoint": azure_endpoint,
+            "base_url": azure_endpoint,
             "api_version": api_version,
+            "model_client_cls": "AzureOpenAIClientNoDot",
         }],
         "temperature": 0,
     }
@@ -253,11 +288,15 @@ Always be helpful and reference past context when relevant.""",
         llm_config=llm_config,
     )
     
+    # Register custom Azure client to avoid deployment-name dot stripping
+    assistant.register_model_client(AzureOpenAIClientNoDot)
+
     # Create user proxy agent
     user_proxy = UserProxyAgent(
         name="user",
-        human_input_mode="TERMINATE",  # Can be "ALWAYS" for interactive
-        max_consecutive_auto_reply=10,
+        human_input_mode="ALWAYS" if interactive else "NEVER",
+        max_consecutive_auto_reply=10 if interactive else 1,
+        default_auto_reply="" if interactive else "TERMINATE",
         code_execution_config=False,
     )
     
@@ -297,7 +336,7 @@ def run_demo_conversation():
     print(f"Session ID: {session_id}\n")
     
     # Create agents
-    assistant, user_proxy = create_agents_with_memory()
+    assistant, user_proxy = create_agents_with_memory(interactive=False)
     
     # Demo conversations
     conversations = [
@@ -351,7 +390,7 @@ def run_interactive_conversation():
     print(f"Session ID: {session_id}\n")
     
     # Create agents
-    assistant, user_proxy = create_agents_with_memory()
+    assistant, user_proxy = create_agents_with_memory(interactive=True)
     
     # Interactive loop
     while True:

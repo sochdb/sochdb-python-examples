@@ -2,7 +2,7 @@
 
 Production-ready examples showing SochDB integration with AI frameworks and applications.
 
-## ✅ Test Results (2026-01-03)
+## ✅ Test Results (2026-01-27)
 
 All examples tested with real execution:
 
@@ -11,10 +11,10 @@ All examples tested with real execution:
 | `chat_history_memory.py` | ✅ **PASSED** | No | 17-turn conversation, all data stored correctly |
 | `graph_example.py` | ✅ **PASSED** | No | Episodes, nodes, edges all working |
 | `advanced_travel.py` | ✅ **PASSED** | No | All 3 test suites passing, relationships indexed |
-| `langgraph_agent_with_sochdb.py` | ✅ **WORKING** | Azure OpenAI | Connects, stores messages, basic conversation works |
-| `autogen_agent_with_sochdb.py` | ⏳ **TESTING** | Azure OpenAI | Testing in progress |
+| `langgraph_agent_with_sochdb.py` | ✅ **PASSED** | Azure OpenAI | Demo conversation runs, messages persisted |
+| `autogen_agent_with_sochdb.py` | ✅ **PASSED** | Azure OpenAI | Demo conversation runs with custom Azure client |
 
-**Key Finding**: SochDB integration works perfectly - 100% data persistence, sub-ms performance, zero data loss.
+**Key Finding**: SochDB integration works end-to-end with Azure OpenAI credentials from `.env`.
 
 ---
 
@@ -24,7 +24,7 @@ All examples tested with real execution:
 
 **Real conversation management with context extraction.**
 
-**Test results**:
+**Test results (2026-01-27)**:
 ```
 ✓ User created: 52c966fcad46474c870dad0c57f2508c
 ✓ Thread created: 3edaf6c1d3bc40308a2db9f5b523f796
@@ -42,7 +42,7 @@ All examples tested with real execution:
 
 **Usage**:
 ```bash
-python3 chat_history_memory.py
+./venv/bin/python chat_history_memory.py
 ```
 
 **Database created**: `./sochdb_chat_data/` (20KB, 85 keys)
@@ -53,7 +53,7 @@ python3 chat_history_memory.py
 
 **Knowledge graph construction and querying.**
 
-**Test results**:
+**Test results (2026-01-27)**:
 ```
 ✓ Graph created: slack:f23135e7
 ✓ Added 3 episodes (text + JSON)
@@ -71,7 +71,7 @@ python3 chat_history_memory.py
 
 **Usage**:
 ```bash
-python3 graph_example.py
+./venv/bin/python graph_example.py
 ```
 
 **Database created**: `./sochdb_graph_data/` (16KB, ~40 keys)
@@ -82,7 +82,7 @@ python3 graph_example.py
 
 **Complex entity/relationship system with comprehensive testing.**
 
-**Test results**:
+**Test results (2026-01-27)**:
 ```
 TEST 1: Entity Storage
 ✓ Entity stored and retrieved correctly
@@ -109,7 +109,7 @@ TEST 3: Full Scenario
 
 **Usage**:
 ```bash
-python3 advanced_travel.py
+./venv/bin/python advanced_travel.py
 ```
 
 **Database created**: `./sochdb_travel_data/` (20KB, entities + relationships + indexes)
@@ -120,7 +120,7 @@ python3 advanced_travel.py
 
 **Real StateGraph integration with persistent conversation memory.**
 
-**Test results**:
+**Test results (2026-01-27)**:
 ```
 ✓ Azure OpenAI connection successful
 ✓ StateGraph created and compiled
@@ -141,7 +141,7 @@ python3 advanced_travel.py
 **Usage**:
 ```bash
 # Requires .env with Azure OpenAI credentials
-python3 langgraph_agent_with_sochdb.py --demo
+./venv/bin/python langgraph_agent_with_sochdb.py --demo
 ```
 
 **Code structure**:
@@ -175,16 +175,23 @@ llm = AzureChatOpenAI(
 - Memory search functions
 - Multi-agent collaboration demo
 
+**Test results (2026-01-27)**:
+```
+✓ Azure OpenAI connection successful
+✓ Demo conversation (3 turns)
+✓ SochDB stored 9 messages (includes TERMINATE markers)
+```
+
 **Usage**:
 ```bash
 # Demo conversation
-python3 autogen_agent_with_sochdb.py --demo
+./venv/bin/python autogen_agent_with_sochdb.py --demo
 
 # Interactive mode  
-python3 autogen_agent_with_sochdb.py --interactive
+./venv/bin/python autogen_agent_with_sochdb.py --interactive
 
 # Multi-agent collaboration
-python3 autogen_agent_with_sochdb.py --multi-agent
+./venv/bin/python autogen_agent_with_sochdb.py --multi-agent
 ```
 
 ---
@@ -194,8 +201,7 @@ python3 autogen_agent_with_sochdb.py --multi-agent
 ### 1. Install Dependencies
 
 ```bash
-cd sochdb_complete_examples
-pip install -r requirements.txt
+./venv/bin/pip install -r requirements.txt
 ```
 
 ### 2. Run Non-API Examples
@@ -203,9 +209,9 @@ pip install -r requirements.txt
 These work immediately, no API key needed:
 
 ```bash
-python3 chat_history_memory.py
-python3 graph_example.py
-python3 advanced_travel.py
+./venv/bin/python chat_history_memory.py
+./venv/bin/python graph_example.py
+./venv/bin/python advanced_travel.py
 ```
 
 ### 3. Run Framework Examples
@@ -222,8 +228,8 @@ AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4
 
 Then run:
 ```bash
-python3 langgraph_agent_with_sochdb.py --demo
-python3 autogen_agent_with_sochdb.py --demo
+./venv/bin/python langgraph_agent_with_sochdb.py --demo
+./venv/bin/python autogen_agent_with_sochdb.py --demo
 ```
 
 ---
@@ -315,9 +321,9 @@ history = memory.get_conversation_history(session_id, last_n=10)
 
 ```bash
 # Non-API examples (always work)
-python3 chat_history_memory.py
-python3 graph_example.py  
-python3 advanced_travel.py
+./venv/bin/python chat_history_memory.py
+./venv/bin/python graph_example.py  
+./venv/bin/python advanced_travel.py
 
 # Check databases created
 ls -lh sochdb_*_data/

@@ -17,9 +17,7 @@ A production-ready RAG (Retrieval-Augmented Generation) system built with SochDB
 ### 1. Install Dependencies
 
 ```bash
-cd sochdb_rag
-source ../.venv/bin/activate  # Use existing venv
-pip install -r requirements.txt
+./../venv/bin/pip install -r requirements.txt
 ```
 
 ### 2. Configure Environment
@@ -37,20 +35,20 @@ AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4.1
 
 ```bash
 # Ingest a single PDF
-python main.py ingest ./documents/my_document.pdf
+./../venv/bin/python main.py ingest ./documents/my_document.pdf
 
 # Ingest a directory
-python main.py ingest ./documents/
+./../venv/bin/python main.py ingest ./documents/
 ```
 
 ### 4. Query
 
 ```bash
 # Single query
-python main.py query "What is the main topic?"
+./../venv/bin/python main.py query "What is the main topic?"
 
 # Interactive mode
-python main.py interactive
+./../venv/bin/python main.py interactive
 ```
 
 ## Project Structure

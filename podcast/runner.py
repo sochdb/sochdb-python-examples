@@ -11,8 +11,19 @@ from .config import get_sochdb_config
 def get_transcript_text() -> str:
     path = Path("donotuse/podcast/podcast_transcript.txt")
     if not path.exists():
-        print(f"File not found: {path}")
-        return ""
+        print(f"File not found: {path}, using sample transcript.")
+        return """Host (0s):
+Welcome to the SochDB podcast. Today we discuss AI databases and vector search.
+
+Guest (10s):
+SochDB combines key-value storage with fast HNSW vector search for LLM apps.
+
+Host (25s):
+What makes SochDB different from traditional databases?
+
+Guest (40s):
+It offers embedded mode, IPC, and fast retrieval tailored for AI workflows.
+"""
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 

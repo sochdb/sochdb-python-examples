@@ -45,9 +45,13 @@ def main():
     print(f"  {len(queries) + 1}. Custom query")
     print(f"  0. Exit")
     
+    non_interactive = not sys.stdin.isatty()
     while True:
         print("\n" + "-"*70)
-        choice = input(f"\nSelect query (0-{len(queries) + 1}): ")
+        if non_interactive:
+            choice = "1"
+        else:
+            choice = input(f"\nSelect query (0-{len(queries) + 1}): ")
         
         if choice == "0":
             print("\nExiting demo.")
@@ -83,6 +87,9 @@ def main():
             print(f"   TOON tokens:  {result['toon_tokens']}")
             print(f"   Saved:        {result['tokens_saved']} tokens ({result['percent_saved']:.1f}%)")
             print("="*70)
+
+            if non_interactive:
+                break
             
         except ValueError:
             print("Invalid input. Try again.")

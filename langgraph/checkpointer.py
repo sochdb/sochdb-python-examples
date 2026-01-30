@@ -128,8 +128,8 @@ class SochDBCheckpointer(BaseCheckpointSaver):
         key = f"checkpoints/{thread_id}/{checkpoint_id}"
         
         data = {
-            "checkpoint": self.serde.dumps(checkpoint),
-            "metadata": self.serde.dumps(metadata),
+            "checkpoint": self._ensure_jsonable(self.serde.dumps(checkpoint)),
+            "metadata": self._ensure_jsonable(self.serde.dumps(metadata)),
             "parent_config": config.get("configurable", {}).get("thread_ts") # approximate parent tracking
         }
         
@@ -141,6 +141,41 @@ class SochDBCheckpointer(BaseCheckpointSaver):
                 "checkpoint_id": checkpoint_id,
             }
         }
+
+    def put_writes(
+        self,
+        config: RunnableConfig,
+        writes: Sequence[tuple[str, Any]],
+        task_id: str,
+        task_path: str = "",
+    ) -> None:
+        """Store intermediate writes linked to a checkpoint."""
+        thread_id = config["configurable"]["thread_id"]
+        key = f"writes/{thread_id}/{task_id}"
+        payload = {
+            "task_path": task_path,
+            "writes": writes,
+        }
+        blob = self.serde.dumps(payload)
+        if isinstance(blob, str):
+            blob = blob.encode()
+        self.db.put(key.encode(), blob)
+
+    def delete_thread(self, thread_id: str) -> None:
+        prefix = f"checkpoints/{thread_id}/".encode()
+        for kv in self.db.scan_prefix(prefix):
+            key = kv.key if hasattr(kv, "key") else kv[0]
+            self.db.delete(key)
+        writes_prefix = f"writes/{thread_id}/".encode()
+        for kv in self.db.scan_prefix(writes_prefix):
+            key = kv.key if hasattr(kv, "key") else kv[0]
+            self.db.delete(key)
+
+    @staticmethod
+    def _ensure_jsonable(value: Any) -> Any:
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+        return value
         
     def _get_data(self, key: str) -> Optional[Dict]:
         try:

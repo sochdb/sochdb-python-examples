@@ -2,7 +2,8 @@
 
 # Run all three processes for the incident response demo
 
-DB_PATH="./ops_db"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DB_PATH="$SCRIPT_DIR/ops_db"
 
 echo "=========================================="
 echo "Multi-Agent Incident Response Demo"
@@ -22,42 +23,25 @@ echo ""
 echo "=========================================="
 echo ""
 
-# Check if server is running
-if ! sochdb-server status --db "$DB_PATH" &> /dev/null; then
-    echo "⚠️  SochDB server not detected. Starting server first..."
-    ./start_server.sh &
-    sleep 3
-fi
-
-echo "Starting processes in background..."
+echo "Starting processes..."
 echo ""
 
-# Start Process B (indexer) first to populate runbooks
+# Run Process B (indexer) once to populate runbooks
 echo "Starting Process B (Runbook Indexer)..."
-python process_b_indexer.py > logs_process_b.txt 2>&1 &
-PID_B=$!
-echo "  → PID: $PID_B"
-sleep 3
+python "$SCRIPT_DIR/process_b_indexer.py" --db-path "$DB_PATH" --once
+echo ""
 
-# Start Process A (collector)
+# Run Process A (collector) for a few iterations
 echo "Starting Process A (Metrics Collector)..."
-python process_a_collector.py > logs_process_a.txt 2>&1 &
-PID_A=$!
-echo "  → PID: $PID_A"
-sleep 2
+python "$SCRIPT_DIR/process_a_collector.py" --db-path "$DB_PATH" --iterations 4
 
-# Start Process C (commander) in foreground
+# Run Process C (commander) for a few iterations
 echo "Starting Process C (Incident Commander)..."
 echo ""
 echo "=========================================="
 echo ""
 
-# Trap Ctrl+C to kill all processes
-trap "echo ''; echo 'Stopping all processes...'; kill $PID_A $PID_B 2>/dev/null; exit" INT
+python "$SCRIPT_DIR/process_c_commander.py" --db-path "$DB_PATH" --iterations 6
 
-python process_c_commander.py
-
-# Cleanup
-kill $PID_A $PID_B 2>/dev/null
 echo ""
 echo "All processes stopped."

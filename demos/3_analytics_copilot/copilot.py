@@ -9,13 +9,16 @@ Showcases:
 
 import sys
 import csv
+import os
+import glob
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sochdb import Database, ContextQuery, DeduplicationStrategy
+from sochdb import Database
+import sochdb
 from shared.toon_encoder import rows_to_toon
 from shared.llm_client import LLMClient
 from shared.embeddings import EmbeddingClient
@@ -29,6 +32,25 @@ class AnalyticsCopilot:
         self.db_path = db_path
         self.llm = LLMClient(model="gpt-4-turbo-preview")
         self.embedding_client = EmbeddingClient()
+        self._cached_rows: List[Dict[str, Any]] = []
+        self._notes_indexed = False
+
+        if not os.environ.get("SOCHDB_LIB_PATH"):
+            lib_root = os.path.join(os.path.dirname(sochdb.__file__), "lib")
+            candidates = glob.glob(os.path.join(lib_root, "*", "libsochdb_index.*"))
+            if candidates:
+                os.environ["SOCHDB_LIB_PATH"] = candidates[0]
+
+    @staticmethod
+    def _sanitize_sql_text(value: str) -> str:
+        return value.replace(",", " ").replace("\n", " ").replace("\r", " ").replace("'", "''")
+
+    def _sql_value(self, value: Optional[str], is_text: bool = False) -> str:
+        if value is None or value == "":
+            return "NULL"
+        if is_text:
+            return f"'{self._sanitize_sql_text(value)}'"
+        return str(value)
     
     def setup_database(self, csv_path: str):
         """Load CSV data into SQL table and index notes."""
@@ -55,46 +77,61 @@ class AnalyticsCopilot:
             with open(csv_path, 'r') as f:
                 reader = csv.DictReader(f)
                 rows = list(reader)
+            self._cached_rows = rows
             
             for row in rows:
-                db.execute_sql(f"""
-                    INSERT OR REPLACE INTO customers VALUES (
-                        {row['id']},
-                        '{row['name']}',
-                        '{row['email']}',
-                        {row['account_value']},
-                        '{row['contract_end']}',
-                        {row['monthly_active_days']},
-                        {row['support_tickets_30d']},
-                        {row['last_login_days_ago']},
-                        {row['feature_usage_score']},
-                        '{row['notes'].replace("'", "''")}'
-                    )
-                """)
+                db.execute_sql(f"DELETE FROM customers WHERE id = {row['id']}")
+                columns = (
+                    "id, name, email, account_value, contract_end, "
+                    "monthly_active_days, support_tickets_30d, last_login_days_ago, "
+                    "feature_usage_score, notes"
+                )
+                values = ", ".join([
+                    self._sql_value(row["id"]),
+                    self._sql_value(row["name"], is_text=True),
+                    self._sql_value(row["email"], is_text=True),
+                    self._sql_value(row["account_value"]),
+                    self._sql_value(row["contract_end"], is_text=True),
+                    self._sql_value(row["monthly_active_days"]),
+                    self._sql_value(row["support_tickets_30d"]),
+                    self._sql_value(row["last_login_days_ago"]),
+                    self._sql_value(row["feature_usage_score"]),
+                    self._sql_value(row["notes"], is_text=True),
+                ])
+                insert_sql = f"INSERT INTO customers ({columns}) VALUES ({values})"
+                db.execute_sql(insert_sql)
             
             print(f"  ✓ Loaded {len(rows)} customers into SQL table")
             
             # Index customer notes into vector collection
             print(f"🔍 Indexing customer notes for semantic search...")
             
-            ns = db.namespace("analytics")
+            ns = db.get_or_create_namespace("analytics")
             dimension = self.embedding_client.dimension
-            collection = ns.create_collection("customer_notes", dimension=dimension)
+            try:
+                collection = ns.create_collection(
+                    "customer_notes",
+                    dimension=dimension,
+                    enable_hybrid_search=True,
+                )
+            except Exception:
+                collection = ns.get_collection("customer_notes")
             
             for row in rows:
                 if row['notes'].strip():
                     embedding = self.embedding_client.embed(row['notes'])
-                    collection.add_document(
+                    collection.insert(
                         id=f"customer_{row['id']}",
-                        embedding=embedding,
-                        text=row['notes'],
+                        vector=embedding,
                         metadata={
                             "customer_id": row['id'],
-                            "customer_name": row['name']
-                        }
+                            "customer_name": row['name'],
+                        },
+                        content=row["notes"],
                     )
             
             print(f"  ✓ Indexed {len(rows)} customer notes")
+            self._notes_indexed = False
         
         print(f"✅ Database setup complete!\n")
     
@@ -120,18 +157,24 @@ class AnalyticsCopilot:
                        monthly_active_days, support_tickets_30d,
                        last_login_days_ago, feature_usage_score
                 FROM customers
-                WHERE (
-                    monthly_active_days < 15
-                    OR support_tickets_30d > 5
-                    OR last_login_days_ago > 7
-                    OR feature_usage_score < 50
-                )
-                ORDER BY feature_usage_score ASC, support_tickets_30d DESC
-                LIMIT 10
             """
             
             result = db.execute_sql(sql_query)
-            at_risk_customers = result.rows if result else []
+            all_customers = result.rows if result else []
+
+            def is_at_risk(row):
+                return (
+                    row.get("monthly_active_days", 0) < 15
+                    or row.get("support_tickets_30d", 0) > 5
+                    or row.get("last_login_days_ago", 0) > 7
+                    or row.get("feature_usage_score", 100) < 50
+                )
+
+            at_risk_customers = [row for row in all_customers if is_at_risk(row)]
+            at_risk_customers.sort(
+                key=lambda r: (r.get("feature_usage_score", 100), -r.get("support_tickets_30d", 0))
+            )
+            at_risk_customers = at_risk_customers[:10]
             
             print(f"  Found {len(at_risk_customers)} at-risk customers")
             
@@ -158,8 +201,12 @@ class AnalyticsCopilot:
             enc = tiktoken.encoding_for_model("gpt-4")
             json_tokens = len(enc.encode(json_version))
             toon_tokens = len(enc.encode(customers_toon))
-            tokens_saved = json_tokens - toon_tokens
-            percent_saved = (tokens_saved / json_tokens * 100) if json_tokens > 0 else 0
+            if not at_risk_customers:
+                tokens_saved = 0
+                percent_saved = 0.0
+            else:
+                tokens_saved = json_tokens - toon_tokens
+                percent_saved = (tokens_saved / json_tokens * 100) if json_tokens > 0 else 0
             
             print(f"  TOON tokens: {toon_tokens} | JSON tokens: {json_tokens}")
             print(f"  Saved: {tokens_saved} tokens ({percent_saved:.1f}%)")
@@ -169,20 +216,25 @@ class AnalyticsCopilot:
             
             query_embedding = self.embedding_client.embed(query)
             
-            ns = db.namespace("analytics")
-            collection = ns.collection("customer_notes")
+            ns = db.get_or_create_namespace("analytics")
+            collection = ns.get_collection("customer_notes")
+            self._ensure_notes_indexed(collection)
             
-            ctx = (
-                ContextQuery(collection)
-                .add_vector_query(query_embedding, weight=0.8)
-                .add_keyword_query("churn risk support tickets low engagement", weight=0.2)
-                .with_token_budget(1000)
-                .with_deduplication(DeduplicationStrategy.SEMANTIC)
-                .execute()
+            results = collection.hybrid_search(
+                vector=query_embedding,
+                text_query="churn risk support tickets low engagement",
+                k=6,
+                alpha=0.8,
             )
             
-            print(f"  Retrieved {len(ctx.documents)} relevant notes")
-            print(f"  Token budget used: ~{ctx.total_tokens} tokens")
+            notes_chunks = []
+            for i, result in enumerate(results.results, 1):
+                meta = result.metadata or {}
+                content = meta.get("_content", "")
+                customer = meta.get("customer_name", "unknown")
+                notes_chunks.append(f"({i}) {customer}\n{content}")
+            
+            print(f"  Retrieved {len(notes_chunks)} relevant notes")
             
             # 4. Generate analysis
             print("💡 Generating churn risk analysis...")
@@ -197,7 +249,7 @@ At-Risk Customers (TOON format):
 {customers_toon}
 
 Customer Notes (semantic search results):
-{ctx.as_markdown()}
+{chr(10).join(notes_chunks)}
 
 Provide:
 1. Summary of top churn risks (list top 3-5 customers with reasons)
@@ -214,10 +266,32 @@ Provide:
                 "json_tokens": json_tokens,
                 "tokens_saved": tokens_saved,
                 "percent_saved": percent_saved,
-                "notes_retrieved": len(ctx.documents),
+                "notes_retrieved": len(notes_chunks),
                 "response": response,
                 "customers_toon": customers_toon
             }
+
+    def _ensure_notes_indexed(self, collection):
+        if self._notes_indexed:
+            return
+
+        rows = self._cached_rows
+        if not rows:
+            return
+
+        for row in rows:
+            if row["notes"].strip():
+                embedding = self.embedding_client.embed(row["notes"])
+                collection.insert(
+                    id=f"customer_{row['id']}",
+                    vector=embedding,
+                    metadata={
+                        "customer_id": row["id"],
+                        "customer_name": row["name"],
+                    },
+                    content=row["notes"],
+                )
+        self._notes_indexed = True
 
 
 def main():

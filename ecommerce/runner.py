@@ -15,12 +15,27 @@ async def ingest_products_data(memory: SochDBMemory):
     json_file_path = Path("donotuse/data/manybirds_products.json")
     
     if not json_file_path.exists():
-        print(f"❌ Product file not found at {json_file_path}")
-        return
-
-    with open(json_file_path) as file:
-        data = json.load(file)
-        products = data.get('products', [])
+        print(f"⚠️  Product file not found at {json_file_path}, using sample products.")
+        products = [
+            {
+                "title": "SuperLight Wool Runners",
+                "product_type": "Shoes",
+                "vendor": "Manybirds",
+                "body_html": "Lightweight wool runners with breathable comfort.",
+                "variants": [{"title": "Size 10", "price": 120}, {"title": "Size 11", "price": 120}],
+            },
+            {
+                "title": "Trail Wool Mizzles",
+                "product_type": "Shoes",
+                "vendor": "Manybirds",
+                "body_html": "Water-resistant wool shoes for trail and city.",
+                "variants": [{"title": "Size 9", "price": 140}, {"title": "Size 10", "price": 140}],
+            },
+        ]
+    else:
+        with open(json_file_path) as file:
+            data = json.load(file)
+            products = data.get('products', [])
 
     print(f"Found {len(products)} products.")
     

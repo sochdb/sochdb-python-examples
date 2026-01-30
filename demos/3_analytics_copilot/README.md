@@ -7,7 +7,7 @@ Demo-grade analytics copilot showcasing SochDB's SQL, TOON encoding, vector sear
 1. **CSV to SQL**: Load spreadsheet data into SQL tables for querying
 2. **TOON Encoding**: Convert query results to compact TOON format (40-67% token savings)
 3. **Vector Search**: Semantic search over customer notes/text fields
-4. **Token Budgeting**: Pack relevant context under strict token limits
+4. **Token Budgeting**: Pack relevant context under strict token limits (app-level)
 5. **Unified Storage**: SQL + vectors in one database (no separate systems)
 6. **Token Comparison**: Measure actual savings with tiktoken
 
@@ -16,13 +16,18 @@ Demo-grade analytics copilot showcasing SochDB's SQL, TOON encoding, vector sear
 ### 1. Install Dependencies
 
 ```bash
-pip install sochdb openai tiktoken
+./../../venv/bin/pip install openai tiktoken
 ```
 
 ### 2. Set OpenAI API Key
 
 ```bash
-export OPENAI_API_KEY="your-api-key-here"
+# Azure OpenAI (preferred)
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
+export AZURE_OPENAI_API_KEY="your_api_key"
+export AZURE_OPENAI_API_VERSION="2024-12-01-preview"
+export AZURE_OPENAI_CHAT_DEPLOYMENT="your-deployment"
+export AZURE_OPENAI_EMBEDDING_DEPLOYMENT="text-embedding-3-small"
 ```
 
 ## Usage
@@ -33,7 +38,7 @@ See TOON vs JSON token savings:
 
 ```bash
 cd demos/3_analytics_copilot
-python token_comparison.py
+./../../venv/bin/python token_comparison.py
 ```
 
 **Expected Output**:
@@ -66,8 +71,10 @@ RESULTS:
 Interactive churn analysis:
 
 ```bash
-python run_demo.py
+./../../venv/bin/python run_demo.py
 ```
+
+Non-interactive runs (CI) default to query 1.
 
 Or programmatically:
 
@@ -227,19 +234,21 @@ Everything in one SochDB instance:
 
 ### Token-Budgeted Retrieval
 
-`ContextQuery` ensures context fits:
+This demo uses a simple token-budgeted selection step after hybrid search:
 
 ```python
-ctx = (
-    ContextQuery(collection)
-    .add_vector_query(embedding, weight=0.8)
-    .add_keyword_query("churn risk", weight=0.2)
-    .with_token_budget(1000)  # Hard limit
-    .execute()
+results = collection.hybrid_search(
+    vector=query_embedding,
+    text_query="churn risk",
+    k=6,
+    alpha=0.8,
 )
+
+# Keep adding chunks until token budget is reached
+picked = token_budget_pick(chunks, budget=1000)
 ```
 
-Won't exceed budget even with many matches.
+This keeps context under a strict limit even with many matches.
 
 ## Files
 

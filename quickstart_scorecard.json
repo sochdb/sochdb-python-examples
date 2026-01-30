@@ -4,7 +4,7 @@
     "scale": "small",
     "mode": "embedded",
     "sdk_version": "0.3.3",
-    "started_at": "2026-01-12T22:16:00.055116",
+    "started_at": "2026-01-24T20:06:56.623298",
     "duration_s": 0.0
   },
   "scenario_scores": {
@@ -19,8 +19,8 @@
           "consistency_failures": 0
         },
         "retrieval": {
-          "ndcg_at_10": 0.0719741384391281,
-          "recall_at_10": 0.2,
+          "ndcg_at_10": 0.3,
+          "recall_at_10": 0.3,
           "mrr": null
         },
         "cache": {
@@ -32,8 +32,8 @@
         },
         "performance": {
           "p95_latencies_ms": {
-            "vector_search": 5.031454563140869,
-            "hybrid_search": 9.770405292510986
+            "vector_search": 0.07719993591308592,
+            "hybrid_search": 3.9838552474975586
           }
         },
         "transactions": {
@@ -48,8 +48,8 @@
   },
   "global_metrics": {
     "p95_latency_ms": {
-      "vector_search": 5.031454563140869,
-      "hybrid_search": 9.770405292510986
+      "vector_search": 0.07719993591308592,
+      "hybrid_search": 3.9838552474975586
     },
     "error_rate": 0.0
   },

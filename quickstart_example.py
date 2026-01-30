@@ -14,10 +14,24 @@ from comprehensive_harness import (
 from sochdb import Database
 from datetime import datetime
 import json
+import os
+import glob
+import sochdb
+
+
+def _ensure_sochdb_lib_path():
+    if os.environ.get("SOCHDB_LIB_PATH"):
+        return
+    lib_root = os.path.join(os.path.dirname(sochdb.__file__), "lib")
+    candidates = glob.glob(os.path.join(lib_root, "*", "libsochdb_index.*"))
+    if candidates:
+        os.environ["SOCHDB_LIB_PATH"] = candidates[0]
 
 def main():
     print("SochDB Test Harness - Quick Start Example\n")
     print("=" * 70)
+
+    _ensure_sochdb_lib_path()
     
     # 1. Setup
     print("\n1. Initializing components...")

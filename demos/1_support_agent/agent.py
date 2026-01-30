@@ -10,6 +10,7 @@ Showcases:
 
 import os
 import sys
+import glob
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
@@ -17,7 +18,7 @@ from datetime import datetime
 # Add parent directory to path to import shared utilities
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sochdb import Database, ContextQuery, DeduplicationStrategy
+from sochdb import Database
 from shared.toon_encoder import rows_to_toon
 from shared.llm_client import LLMClient
 from shared.embeddings import EmbeddingClient
@@ -25,12 +26,26 @@ from shared.embeddings import EmbeddingClient
 
 class SupportAgent:
     """Support agent with SQL, KV, vector RAG, and ACID transactions."""
+
+    @staticmethod
+    def _sanitize_sql_text(value: str) -> str:
+        """Sanitize text for SochDB's basic SQL parser (commas break inserts)."""
+        return value.replace(",", " ").replace("\n", " ").replace("\r", " ").replace("'", "''")
     
     def __init__(self, db_path: str = "./shop_db"):
         """Initialize agent with database connection."""
         self.db_path = db_path
         self.llm = LLMClient(model="gpt-4-turbo-preview", temperature=0.7)
         self.embedding_client = EmbeddingClient()
+        self._policies_indexed = False
+
+        if not os.environ.get("SOCHDB_LIB_PATH"):
+            import sochdb
+
+            lib_root = os.path.join(os.path.dirname(sochdb.__file__), "lib")
+            candidates = glob.glob(os.path.join(lib_root, "*", "libsochdb_index.*"))
+            if candidates:
+                os.environ["SOCHDB_LIB_PATH"] = candidates[0]
     
     def handle_query(self, user_id: int, user_question: str) -> Dict[str, Any]:
         """Handle user support query.
@@ -92,21 +107,34 @@ class SupportAgent:
             print("🔍 Retrieving relevant policies (vector RAG)...")
             query_embedding = self.embedding_client.embed(user_question)
             
-            ns = db.namespace("support_system")
-            collection = ns.collection("policies")
+            ns = db.get_or_create_namespace("support_system")
+            try:
+                collection = ns.get_collection("policies")
+            except Exception:
+                collection = ns.create_collection(
+                    "policies",
+                    dimension=self.embedding_client.dimension,
+                    enable_hybrid_search=True,
+                )
+
+            self._ensure_policies_indexed(collection)
             
-            # Build context query with token budget
-            ctx = (
-                ContextQuery(collection)
-                .add_vector_query(query_embedding, weight=0.7)
-                .add_keyword_query("late shipment reroute replacement policy", weight=0.3)
-                .with_token_budget(1200)
-                .with_deduplication(DeduplicationStrategy.SEMANTIC)
-                .execute()
+            results = collection.hybrid_search(
+                vector=query_embedding,
+                text_query="late shipment reroute replacement policy",
+                k=5,
+                alpha=0.7,
             )
             
-            print(f"   Retrieved {len(ctx.documents)} policy chunks")
-            print(f"   Token budget used: ~{ctx.total_tokens} tokens")
+            policy_chunks = []
+            for i, result in enumerate(results.results, 1):
+                meta = result.metadata or {}
+                content = meta.get("_content", "")
+                source = meta.get("source", "unknown")
+                policy_chunks.append(f"({i}) {source}\n{content}")
+            
+            policies_markdown = "\n\n".join(policy_chunks)
+            print(f"   Retrieved {len(policy_chunks)} policy chunks")
             
             # 5. Build prompt with TOON + context
             print("💬 Generating LLM response...")
@@ -126,7 +154,7 @@ Recent orders (TOON format):
 {orders_toon}
 
 Relevant policies:
-{ctx.as_markdown()}
+{policies_markdown}
 
 Provide a helpful response and suggest specific actions to resolve this issue.
 """
@@ -156,7 +184,7 @@ Provide a helpful response and suggest specific actions to resolve this issue.
                 "response": response,
                 "orders_count": len(orders),
                 "actions_taken": actions_taken,
-                "policies_retrieved": len(ctx.documents),
+                "policies_retrieved": len(policy_chunks),
                 "toon_preview": orders_toon[:200]
             }
     
@@ -193,15 +221,17 @@ Provide a helpful response and suggest specific actions to resolve this issue.
             """)
             
             # Create support ticket
+            reason = self._sanitize_sql_text("Reroute request")
             db.execute_sql(f"""
                 INSERT INTO tickets (order_id, reason, created_at)
-                VALUES ({order_id}, 'Reroute request', '{timestamp}')
+                VALUES ({order_id}, '{reason}', '{timestamp}')
             """)
             
             # Log audit trail
+            details = self._sanitize_sql_text("User requested reroute")
             db.execute_sql(f"""
                 INSERT INTO audit_logs (entity_type, entity_id, action, details, timestamp)
-                VALUES ('order', {order_id}, 'reroute_requested', 'User requested reroute', '{timestamp}')
+                VALUES ('order', {order_id}, 'reroute_requested', '{details}', '{timestamp}')
             """)
             
             return f"Rerouted order #{order_id}"
@@ -222,20 +252,51 @@ Provide a helpful response and suggest specific actions to resolve this issue.
             """)
             
             # Create ticket
+            reason = self._sanitize_sql_text("Replacement requested")
             db.execute_sql(f"""
                 INSERT INTO tickets (order_id, reason, created_at)
-                VALUES ({order_id}, 'Replacement requested', '{timestamp}')
+                VALUES ({order_id}, '{reason}', '{timestamp}')
             """)
             
             # Audit log
+            details = self._sanitize_sql_text("Replacement order initiated")
             db.execute_sql(f"""
                 INSERT INTO audit_logs (entity_type, entity_id, action, details, timestamp)
-                VALUES ('order', {order_id}, 'replacement_requested', 'Replacement order initiated', '{timestamp}')
+                VALUES ('order', {order_id}, 'replacement_requested', '{details}', '{timestamp}')
             """)
             
             return f"Created replacement for order #{order_id}"
         except Exception as e:
             return f"Transaction failed: {e}"
+
+    def _ensure_policies_indexed(self, collection):
+        """Index policy documents in the current process (vector index is in-memory)."""
+        if self._policies_indexed:
+            return
+
+        policies_dir = Path(__file__).parent / "policies"
+        for policy_file in policies_dir.glob("*.txt"):
+            with open(policy_file, "r") as f:
+                content = f.read()
+            chunks = [chunk.strip() for chunk in content.split("\n\n") if chunk.strip()]
+            for i, chunk in enumerate(chunks):
+                if len(chunk) < 50:
+                    continue
+                embedding = self.embedding_client.embed(chunk)
+                doc_id = f"{policy_file.stem}_chunk_{i}"
+                metadata = {
+                    "source": policy_file.name,
+                    "type": "policy",
+                    "chunk_index": i,
+                }
+                collection.insert(
+                    id=doc_id,
+                    vector=embedding,
+                    metadata=metadata,
+                    content=chunk,
+                )
+
+        self._policies_indexed = True
     
     def _log_interaction(
         self,
@@ -246,7 +307,7 @@ Provide a helpful response and suggest specific actions to resolve this issue.
     ):
         """Log customer interaction to audit trail."""
         timestamp = datetime.now().isoformat()
-        details = f"Q: {question[:50]}... | A: {response[:50]}..."
+        details = self._sanitize_sql_text(f"Q: {question[:50]}... | A: {response[:50]}...")
         
         db.execute_sql(f"""
             INSERT INTO audit_logs (entity_type, entity_id, action, details, timestamp)

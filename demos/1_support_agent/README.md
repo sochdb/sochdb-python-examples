@@ -6,7 +6,7 @@ Demo-grade support agent showcasing SochDB's SQL, KV, vector RAG, TOON encoding,
 
 1. **SQL Queries** (`execute_sql`): Fetch customer orders from relational tables
 2. **KV Storage**: Retrieve user preferences from key-value store
-3. **Vector RAG**: Use `ContextQuery` with token budgeting to retrieve relevant policies
+3. **Vector RAG**: Hybrid search over embedded policy chunks (vector + keyword)
 4. **TOON Encoding**: Convert SQL rows to compact TOON format (40-67% token savings vs JSON)
 5. **ACID Transactions**: Atomically update orders + create tickets + log audits
 6. **Hybrid Storage**: Single DB for SQL + KV + vectors (no glue code)
@@ -16,20 +16,25 @@ Demo-grade support agent showcasing SochDB's SQL, KV, vector RAG, TOON encoding,
 ### 1. Install Dependencies
 
 ```bash
-pip install sochdb openai tiktoken
+./../../venv/bin/pip install openai tiktoken
 ```
 
 ### 2. Set OpenAI API Key
 
 ```bash
-export OPENAI_API_KEY="your-api-key-here"
+# Azure OpenAI (preferred)
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
+export AZURE_OPENAI_API_KEY="your_api_key"
+export AZURE_OPENAI_API_VERSION="2024-12-01-preview"
+export AZURE_OPENAI_CHAT_DEPLOYMENT="your-deployment"
+export AZURE_OPENAI_EMBEDDING_DEPLOYMENT="text-embedding-3-small"
 ```
 
 ### 3. Initialize Database
 
 ```bash
 cd demos/1_support_agent
-python setup_db.py
+./../../venv/bin/python setup_db.py
 ```
 
 This creates:
@@ -43,8 +48,10 @@ This creates:
 ### Run Interactive Demo
 
 ```bash
-python run_demo.py
+./../../venv/bin/python run_demo.py
 ```
+
+Non-interactive runs (CI) default to scenario 1.
 
 Select from predefined scenarios or enter custom queries.
 
@@ -136,7 +143,7 @@ User Query
     ↓
 [KV Lookup] → User prefs
     ↓
-[Vector Search] → Policy RAG → [ContextQuery] → Token-budgeted context
+[Vector Search] → Policy RAG → [Hybrid Search] → Token-budgeted context
     ↓
 [LLM] → Generate response
     ↓

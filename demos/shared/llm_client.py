@@ -3,7 +3,10 @@
 import os
 from typing import Optional, List, Dict, Any
 import tiktoken
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def count_tokens(text: str, model: str = "gpt-4") -> int:
@@ -28,10 +31,10 @@ class LLMClient:
     
     def __init__(
         self,
-        model: str = "gpt-4-turbo-preview",
+        model: Optional[str] = "gpt-4-turbo-preview",
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
-        api_key: Optional[str] = None
+        api_key: Optional[str] = None,
     ):
         """Initialize LLM client.
         
@@ -41,10 +44,24 @@ class LLMClient:
             max_tokens: Max tokens in response
             api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
         """
-        self.model = model
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+        azure_deployment = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT") or os.getenv("AZURE_OPENAI_DEPLOYMENT")
+
+        if azure_endpoint and azure_api_key:
+            # Prefer Azure deployment name when available
+            self.model = azure_deployment or model
+            self.client = AzureOpenAI(
+                api_key=azure_api_key,
+                azure_endpoint=azure_endpoint,
+                api_version=azure_api_version,
+            )
+        else:
+            self.model = model or "gpt-4-turbo-preview"
+            self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
     
     def complete(
         self,

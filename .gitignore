@@ -234,3 +234,14 @@ sample_*_docs.md
 *.swp
 *.swo
 *~
+
+
+sochdb_autogen_data/
+sochdb_chat_data/
+sochdb_entity_data/
+sochdb_graph_data/
+sochdb_langgraph_agent_data/
+sochdb_langgraph_data/
+sochdb_simple_data/
+sochdb_travel_data/
+sochdb_user_data/

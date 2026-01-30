@@ -2,17 +2,25 @@
 
 import os
 import sys
+import glob
 from pathlib import Path
 
 # Add parent directory to path to import shared utilities
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sochdb import Database
+import sochdb
 from shared.embeddings import EmbeddingClient
 
 
 def setup_database(db_path: str = "./shop_db"):
     """Initialize SochDB with schema, sample data, and vector collection."""
+
+    if not os.environ.get("SOCHDB_LIB_PATH"):
+        lib_root = os.path.join(os.path.dirname(sochdb.__file__), "lib")
+        candidates = glob.glob(os.path.join(lib_root, "*", "libsochdb_index.*"))
+        if candidates:
+            os.environ["SOCHDB_LIB_PATH"] = candidates[0]
     
     print(f"Setting up database at {db_path}...")
     
@@ -58,16 +66,17 @@ def setup_database(db_path: str = "./shop_db"):
         print("Inserting sample orders...")
         
         sample_orders = [
-            (1001, 123, "IN_TRANSIT", "2026-01-02", "123 Main St, Seattle, WA 98101", 149.99, "2025-12-28"),
-            (1002, 123, "DELIVERED", "2025-12-30", "123 Main St, Seattle, WA 98101", 79.99, "2025-12-20"),
-            (1003, 456, "PROCESSING", "2026-01-10", "456 Oak Ave, Portland, OR 97201", 299.99, "2026-01-03"),
-            (1004, 123, "LATE", "2025-12-31", "123 Main St, Seattle, WA 98101", 199.99, "2025-12-22"),
-            (1005, 789, "IN_TRANSIT", "2026-01-06", "789 Pine Rd, San Francisco, CA 94102", 549.99, "2026-01-01"),
+            (1001, 123, "IN_TRANSIT", "2026-01-02", "123 Main St Seattle WA 98101", 149.99, "2025-12-28"),
+            (1002, 123, "DELIVERED", "2025-12-30", "123 Main St Seattle WA 98101", 79.99, "2025-12-20"),
+            (1003, 456, "PROCESSING", "2026-01-10", "456 Oak Ave Portland OR 97201", 299.99, "2026-01-03"),
+            (1004, 123, "LATE", "2025-12-31", "123 Main St Seattle WA 98101", 199.99, "2025-12-22"),
+            (1005, 789, "IN_TRANSIT", "2026-01-06", "789 Pine Rd San Francisco CA 94102", 549.99, "2026-01-01"),
         ]
         
         for order in sample_orders:
+            db.execute_sql(f"DELETE FROM orders WHERE id = {order[0]}")
             db.execute_sql(f"""
-                INSERT OR IGNORE INTO orders (id, user_id, status, eta, destination, total, created_at)
+                INSERT INTO orders (id, user_id, status, eta, destination, total, created_at)
                 VALUES ({order[0]}, {order[1]}, '{order[2]}', '{order[3]}', '{order[4]}', {order[5]}, '{order[6]}')
             """)
         
@@ -91,10 +100,24 @@ def setup_database(db_path: str = "./shop_db"):
         embedding_client = EmbeddingClient()
         dimension = embedding_client.dimension
         
-        ns = db.namespace("support_system")
+        ns = db.get_or_create_namespace("support_system")
         
         # Create collection for policy documents
-        collection = ns.create_collection("policies", dimension=dimension)
+        try:
+            collection = ns.get_collection("policies")
+            if not collection.config.enable_hybrid_search:
+                ns.delete_collection("policies")
+                collection = ns.create_collection(
+                    "policies",
+                    dimension=dimension,
+                    enable_hybrid_search=True,
+                )
+        except Exception:
+            collection = ns.create_collection(
+                "policies",
+                dimension=dimension,
+                enable_hybrid_search=True,
+            )
         
         # Load and embed policy documents
         policies_dir = Path(__file__).parent / "policies"
@@ -121,11 +144,11 @@ def setup_database(db_path: str = "./shop_db"):
                     "chunk_index": i
                 }
                 
-                collection.add_document(
+                collection.insert(
                     id=doc_id,
-                    embedding=embedding,
-                    text=chunk,
-                    metadata=metadata
+                    vector=embedding,
+                    metadata=metadata,
+                    content=chunk,
                 )
         
     print(f"\n✓ Database setup complete at {db_path}")

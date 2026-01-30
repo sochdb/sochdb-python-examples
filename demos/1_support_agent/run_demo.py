@@ -16,7 +16,7 @@ def main():
     print("\nShowcasing:")
     print("  ✓ SQL queries for order data")
     print("  ✓ KV lookups for user preferences")
-    print("  ✓ Vector RAG with token-budgeted ContextQuery")
+    print("  ✓ Vector RAG with hybrid search (vector + keyword)")
     print("  ✓ TOON encoding (40-67% token savings)")
     print("  ✓ ACID transactions for multi-table updates")
     print("\n" + "="*60 + "\n")
@@ -46,9 +46,13 @@ def main():
     print(f"  {len(scenarios) + 1}. Custom query")
     print(f"  0. Exit")
     
+    non_interactive = not sys.stdin.isatty()
     while True:
         print("\n" + "-"*60)
-        choice = input("\nSelect scenario (0-{}): ".format(len(scenarios) + 1))
+        if not non_interactive:
+            choice = input("\nSelect scenario (0-{}): ".format(len(scenarios) + 1))
+        else:
+            choice = "1"
         
         if choice == "0":
             print("\nExiting demo.")
@@ -86,6 +90,9 @@ def main():
             print(f"  - Orders found: {result['orders_count']}")
             print(f"  - Policies retrieved: {result['policies_retrieved']}")
             print(f"  - TOON preview: {result['toon_preview'][:100]}...")
+
+            if non_interactive:
+                break
             
         except ValueError:
             print("Invalid input. Try again.")

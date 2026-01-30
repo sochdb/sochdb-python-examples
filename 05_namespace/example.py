@@ -15,8 +15,9 @@ def main():
         print("1. Create Namespaces")
         print("--------------------")
         
-        ns1 = db.namespace("tenant_acme")
-        ns2 = db.namespace("tenant_globex")
+        # Namespaces must be created before use
+        ns1 = db.get_or_create_namespace("tenant_acme")
+        ns2 = db.get_or_create_namespace("tenant_globex")
         
         ns1.put(b"company", b"Acme Corporation")
         ns1.put(b"users", b"150")

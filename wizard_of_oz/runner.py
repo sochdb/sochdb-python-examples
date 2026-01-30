@@ -11,8 +11,12 @@ def get_wizard_of_oz_text() -> str:
     # Adjust path to where the text file is located
     path = Path("donotuse/wizard_of_oz/woo.txt")
     if not path.exists():
-        print(f"File not found: {path}")
-        return ""
+        print(f"File not found: {path}, using sample text.")
+        return (
+            "Dorothy wore silver shoes as she walked the yellow brick road.\n\n"
+            "The Great Wizard of Oz was a mysterious figure in the Emerald City.\n\n"
+            "The Scarecrow wished for a brain so he could think."
+        )
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
